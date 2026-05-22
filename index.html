@@ -275,6 +275,95 @@
             color: #764ba2;
         }
 
+        .comment-form {
+            margin-top: 25px;
+        }
+
+        .comment-form input,
+        .comment-form textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            font-family: inherit;
+            margin-bottom: 12px;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .comment-form input:focus,
+        .comment-form textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .comment-form textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        .comment-list {
+            margin-top: 30px;
+        }
+
+        .comment-item {
+            background: #f5f7ff;
+            border-left: 4px solid #667eea;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .comment-item .comment-author {
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .comment-item .comment-date {
+            font-size: 0.8em;
+            color: #aaa;
+            margin-bottom: 8px;
+        }
+
+        .comment-item .comment-text {
+            color: #555;
+            line-height: 1.7;
+            margin: 0;
+        }
+
+        .comment-item .delete-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: none;
+            border: none;
+            color: #ccc;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: color 0.2s ease;
+            padding: 0;
+        }
+
+        .comment-item .delete-btn:hover {
+            color: #e74c3c;
+        }
+
+        .comment-count {
+            color: #999;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .no-comments {
+            text-align: center;
+            color: #bbb;
+            padding: 20px 0;
+            font-style: italic;
+        }
+
         @media (max-width: 768px) {
             h1 {
                 font-size: 2em;
@@ -432,6 +521,21 @@
             </div>
         </section>
 
+        <section id="comments">
+            <h2>💬 コメント</h2>
+            <p class="comment-count" id="comment-count"></p>
+
+            <div class="comment-form">
+                <input type="text" id="comment-name" placeholder="お名前（必須）" maxlength="50">
+                <textarea id="comment-text" placeholder="コメントを書いてください..."></textarea>
+                <button class="btn btn-primary" onclick="submitComment()">コメントを投稿する</button>
+            </div>
+
+            <div class="comment-list" id="comment-list">
+                <p class="no-comments" id="no-comments">まだコメントがありません。最初のコメントを書いてみてください！</p>
+            </div>
+        </section>
+
         <footer>
             <p>© 2026 みうっちー. All rights reserved.</p>
             <p style="margin-top: 10px; color: #999; font-size: 0.9em;">⚠️ このサイトは Claude（AI）の支援を受けて作成されています。</p>
@@ -441,5 +545,82 @@
             </div>
         </footer>
     </div>
+    <script>
+        const STORAGE_KEY = 'miutti_blog_comments';
+
+        function loadComments() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            return stored ? JSON.parse(stored) : [];
+        }
+
+        function saveComments(comments) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(comments));
+        }
+
+        function renderComments() {
+            const comments = loadComments();
+            const list = document.getElementById('comment-list');
+            const noComments = document.getElementById('no-comments');
+            const countEl = document.getElementById('comment-count');
+
+            countEl.textContent = `${comments.length}件のコメント`;
+
+            const items = list.querySelectorAll('.comment-item');
+            items.forEach(el => el.remove());
+
+            if (comments.length === 0) {
+                noComments.style.display = 'block';
+                return;
+            }
+
+            noComments.style.display = 'none';
+            comments.slice().reverse().forEach((comment, index) => {
+                const realIndex = comments.length - 1 - index;
+                const div = document.createElement('div');
+                div.className = 'comment-item';
+                div.innerHTML = `
+                    <button class="delete-btn" onclick="deleteComment(${realIndex})" title="削除">✕</button>
+                    <div class="comment-author">${escapeHtml(comment.name)}</div>
+                    <div class="comment-date">${comment.date}</div>
+                    <p class="comment-text">${escapeHtml(comment.text).replace(/\n/g, '<br>')}</p>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function submitComment() {
+            const name = document.getElementById('comment-name').value.trim();
+            const text = document.getElementById('comment-text').value.trim();
+
+            if (!name) { alert('お名前を入力してください。'); return; }
+            if (!text) { alert('コメントを入力してください。'); return; }
+
+            const comments = loadComments();
+            comments.push({
+                name,
+                text,
+                date: new Date().toLocaleString('ja-JP')
+            });
+            saveComments(comments);
+
+            document.getElementById('comment-name').value = '';
+            document.getElementById('comment-text').value = '';
+            renderComments();
+        }
+
+        function deleteComment(index) {
+            if (!confirm('このコメントを削除しますか？')) return;
+            const comments = loadComments();
+            comments.splice(index, 1);
+            saveComments(comments);
+            renderComments();
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        renderComments();
+    </script>
 </body>
 </html>
