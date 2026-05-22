@@ -528,7 +528,7 @@
             <div class="comment-form">
                 <input type="text" id="comment-name" placeholder="お名前（必須）" maxlength="50">
                 <textarea id="comment-text" placeholder="コメントを書いてください..."></textarea>
-                <button class="btn btn-primary" onclick="submitComment()">コメントを投稿する</button>
+                <button class="btn btn-primary">コメントを投稿する</button>
             </div>
 
             <div class="comment-list" id="comment-list">
@@ -545,82 +545,89 @@
             </div>
         </footer>
     </div>
-    <script>
-        const STORAGE_KEY = 'miutti_blog_comments';
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js';
 
-        function loadComments() {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            return stored ? JSON.parse(stored) : [];
+        // ★ Firebase Console から取得した設定をここに貼り付けてください
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const commentsRef = collection(db, 'comments');
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
-        function saveComments(comments) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(comments));
-        }
-
-        function renderComments() {
-            const comments = loadComments();
+        // リアルタイムでコメントを監視・表示
+        const q = query(commentsRef, orderBy('createdAt', 'desc'));
+        onSnapshot(q, (snapshot) => {
             const list = document.getElementById('comment-list');
             const noComments = document.getElementById('no-comments');
             const countEl = document.getElementById('comment-count');
 
-            countEl.textContent = `${comments.length}件のコメント`;
+            list.querySelectorAll('.comment-item').forEach(el => el.remove());
+            countEl.textContent = `${snapshot.size}件のコメント`;
 
-            const items = list.querySelectorAll('.comment-item');
-            items.forEach(el => el.remove());
-
-            if (comments.length === 0) {
+            if (snapshot.empty) {
                 noComments.style.display = 'block';
                 return;
             }
 
             noComments.style.display = 'none';
-            comments.slice().reverse().forEach((comment, index) => {
-                const realIndex = comments.length - 1 - index;
+            snapshot.forEach((docSnap) => {
+                const comment = docSnap.data();
+                const date = comment.createdAt
+                    ? comment.createdAt.toDate().toLocaleString('ja-JP')
+                    : '...';
                 const div = document.createElement('div');
                 div.className = 'comment-item';
                 div.innerHTML = `
-                    <button class="delete-btn" onclick="deleteComment(${realIndex})" title="削除">✕</button>
+                    <button class="delete-btn" data-id="${docSnap.id}" title="削除">✕</button>
                     <div class="comment-author">${escapeHtml(comment.name)}</div>
-                    <div class="comment-date">${comment.date}</div>
+                    <div class="comment-date">${date}</div>
                     <p class="comment-text">${escapeHtml(comment.text).replace(/\n/g, '<br>')}</p>
                 `;
                 list.appendChild(div);
             });
-        }
 
-        function submitComment() {
+            list.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.onclick = async () => {
+                    if (!confirm('このコメントを削除しますか？')) return;
+                    await deleteDoc(doc(db, 'comments', btn.dataset.id));
+                };
+            });
+        });
+
+        // フォームの投稿ボタンにイベントを設定
+        document.querySelector('#comments .btn-primary').addEventListener('click', async () => {
             const name = document.getElementById('comment-name').value.trim();
             const text = document.getElementById('comment-text').value.trim();
 
             if (!name) { alert('お名前を入力してください。'); return; }
             if (!text) { alert('コメントを入力してください。'); return; }
 
-            const comments = loadComments();
-            comments.push({
-                name,
-                text,
-                date: new Date().toLocaleString('ja-JP')
-            });
-            saveComments(comments);
+            const btn = document.querySelector('#comments .btn-primary');
+            btn.disabled = true;
+            btn.textContent = '投稿中...';
 
-            document.getElementById('comment-name').value = '';
-            document.getElementById('comment-text').value = '';
-            renderComments();
-        }
-
-        function deleteComment(index) {
-            if (!confirm('このコメントを削除しますか？')) return;
-            const comments = loadComments();
-            comments.splice(index, 1);
-            saveComments(comments);
-            renderComments();
-        }
-
-        function escapeHtml(str) {
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        }
-
-        renderComments();
+            try {
+                await addDoc(commentsRef, { name, text, createdAt: serverTimestamp() });
+                document.getElementById('comment-name').value = '';
+                document.getElementById('comment-text').value = '';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'コメントを投稿する';
+            }
+        });
     </script>
 </body>
 </html>
